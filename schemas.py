@@ -12,37 +12,48 @@ Model name is converted to lowercase for the collection name:
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
-
-# Example schemas (replace with your own):
+from typing import Optional, List
+from datetime import datetime
 
 class User(BaseModel):
     """
     Users collection schema
     Collection name: "user" (lowercase of class name)
     """
-    name: str = Field(..., description="Full name")
     email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    password_hash: str = Field(..., description="PBKDF2-SHA256 hash of the password (hex)")
+    password_salt: str = Field(..., description="Salt for password hashing (hex)")
+    iterations: int = Field(200000, description="PBKDF2 iterations")
+    encryption_salt: str = Field(..., description="Salt used to derive KEK (hex)")
+    encrypted_vault_key: str = Field(..., description="Fernet-encrypted vault key (base64)")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
-class Product(BaseModel):
+class Session(BaseModel):
     """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
+    Active sessions mapped to user and token. Vault key is stored only for the session lifetime.
     """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+    user_id: str
+    token: str
+    vault_key_b64: str
+    expires_at: datetime
 
-# Add your own schemas here:
-# --------------------------------------------------
+class VaultItem(BaseModel):
+    """
+    Encrypted vault items (all sensitive fields are encrypted using user's vault key via Fernet)
+    Collection name: "vaultitem" -> we will query by user_id
+    """
+    user_id: str
+    title: str
+    username_enc: str
+    password_enc: str
+    url: Optional[str] = None
+    notes_enc: Optional[str] = None
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class SeedPhrase(BaseModel):
+    """
+    Encrypted seed phrase linked to a user
+    """
+    user_id: str
+    label: str
+    seed_enc: str
